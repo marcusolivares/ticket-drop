@@ -1,0 +1,54 @@
+name: Publish
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+  schedule:
+    # GitHub runs cron in UTC. São Paulo is UTC-3, with no daylight saving.
+    - cron: "17 9 * * *"   # Every day, 06:17 in São Paulo
+    # Most sales open on Tuesdays at 17:00, and some plays only reach the API
+    # that same day, so refresh again shortly before.
+    - cron: "23 19 * * 2"  # Tuesdays, 16:23 in São Paulo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test
+        run: python -m unittest discover -s tests
+      # If this fails, nothing is deployed and the last good page stays online.
+      # The published plays.json is only read if the booklet can't be, to keep its forecasts.
+      - name: Fetch plays and build the page
+        run: |
+          python -m ticket_drop --out site \
+            --previous "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/plays.json"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
