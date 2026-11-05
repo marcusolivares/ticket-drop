@@ -6,12 +6,9 @@ Tickets for popular plays can sell out quickly, so it helps to know the moment t
 
 This is an unofficial project with no connection to Sesc. It only shows public information and links to Sesc's own site. It doesn't buy tickets, and it should stay that way.
 
-## Branches
+## Earlier Python version
 
-| Branch | Contents |
-|---|---|
-| `browser` | This version, which is the live site. |
-| `master` | The earlier Python version, which also has calendar feeds. It works from a home connection, but Sesc refuses GitHub's servers, so it can't publish itself. |
+Up to commit `e477a43`, this project was a Python script that also produced calendar feeds. It works from a home connection, but Sesc refuses GitHub's servers, so it can't publish itself.
 
 ## Run it locally
 

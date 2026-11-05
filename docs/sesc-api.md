@@ -27,7 +27,7 @@ Sesc's CloudFront refuses some clients, and browsers apply CORS on top. Checked 
 | Client | Result |
 |---|---|
 | A script on a home connection | Works, with an honest User-Agent. |
-| A normal browser, from another site | Works, per a real test of `detail`, its 404s, and the posts route. |
+| A normal browser, from another site | Works, per a real test of `detail`, its 404s, the posts route, and the live page's listing. |
 | A GitHub-hosted Actions runner | **HTTP 403 on the first request.** Other cloud hosts are untested, and may be refused too. |
 | Headless Chrome | Refused. Its User-Agent says `HeadlessChrome`, which may be why. |
 
@@ -37,7 +37,7 @@ CORS, by route:
 
 | Route | From another site | Notes |
 |---|---|---|
-| `/wp/v1/atividades/filter`, `/detail` | Readable | Echoes the `Origin`, with `Vary: Origin`. 404s are readable too. The filter route hasn't been tested from a real browser yet. |
+| `/wp/v1/atividades/filter`, `/detail` | Readable | Echoes the `Origin`, with `Vary: Origin`. 404s are readable too. |
 | `/wp/v2/posts` | Readable | Echoes the `Origin`. |
 | `/wp/v1/unidades-atividades` | **Unreliable** | No `Vary: Origin`. A script sees the header, but a real browser got none, and I couldn't reproduce why. This project keeps a fixed copy of the units in `web/regions.js`. |
 | `/editorial/emcartaz/` | Not readable | No CORS header, so use the posts route, which has the same content. |
@@ -128,7 +128,7 @@ Things to watch for:
 
 ### Reading it with `pdf.js`
 
-Against the Python parser on `master`, which uses `pdfplumber`, the entries matched on 126 of 126 across those three editions. Two things took care:
+Against the earlier Python parser (commit `e477a43`), which uses `pdfplumber`, the entries matched on 126 of 126 across those three editions. Two things took care:
 
 - **Age badges are merged into nearby text.** `A12` and `AL` are printed at size 6 inside schedules at 8.5. `pdf.js` merges text in the same font on a line and reports only the first size, so `25/10. A14` looks entirely normal and `A14 GRÁTIS.` looks entirely small. Treated naively, the second one hides that a play is free.
 - **Real font names come late.** They're only available from `page.commonObjs` after `page.getOperatorList()`, which processes the page's images too. So do that for as few pages as possible, and open the document with `fontExtraProperties: true`.
