@@ -1,8 +1,8 @@
 # Sesc SP data sources
 
-Sesc São Paulo has no documented public API. Everything here was found by inspecting the website, its scripts and the Credencial Sesc SP app, and was last checked on 2026-11-03. Any of it can change without notice.
+Sesc São Paulo has no documented public API. Everything here was found by inspecting the website, its scripts and the Credencial Sesc SP app, and was last checked on 2026-11-05. Any of it can change without notice.
 
-Be gentle: this project waits at least one second between requests, sends an honest User-Agent, and only reads.
+Be gentle: this project runs at most 3 requests at once, at least 150 ms apart, stops after 3 failures in a row, and only reads.
 
 ## Public endpoints used by this project
 
@@ -10,7 +10,7 @@ Be gentle: this project waits at least one second between requests, sends an hon
 |---|---|
 | `www.sescsp.org.br/wp-json/wp/v1/atividades/filter` | Lists activities. Has dates but no sale times. |
 | `www.sescsp.org.br/wp-json/wp/v1/atividades/detail?slug=<slug>` | Sale times, prices and ticket counts per session. |
-| `www.sescsp.org.br/wp-json/wp/v1/unidades-atividades` | Units, with region (`capital`, `interior`, `litoral`) in `description`. |
+| `www.sescsp.org.br/wp-json/wp/v2/posts?slug=emcartaz&_fields=content` | The booklet archive page, including links to every edition. |
 
 To list plays:
 
@@ -19,6 +19,31 @@ To list plays:
 ```
 
 `linguagem=teatro` keeps only the Teatro sub-category of shows. Some shows have no sub-category, so they are missed: most are music, but a few may be plays. Using `atividade=shows-espetaculos-e-performances` instead returns all shows.
+
+## Who can read it
+
+Sesc's CloudFront refuses some clients, and browsers apply CORS on top. Checked on 2026-11-04 and 2026-11-05:
+
+| Client | Result |
+|---|---|
+| A script on a home connection | Works, with an honest User-Agent. |
+| A normal browser, from another site | Works, per a real test of `detail`, its 404s, and the posts route. |
+| A GitHub-hosted Actions runner | **HTTP 403 on the first request.** Other cloud hosts are untested, and may be refused too. |
+| Headless Chrome | Refused. Its User-Agent says `HeadlessChrome`, which may be why. |
+
+A refusal usually has no CORS header, so a browser reports it as a network error (`Failed to fetch`), not as a 403. Once, a refusal arrived as a readable HTML page with status 200. Don't work around these blocks: if Sesc refuses this project's requests, respect that.
+
+CORS, by route:
+
+| Route | From another site | Notes |
+|---|---|---|
+| `/wp/v1/atividades/filter`, `/detail` | Readable | Echoes the `Origin`, with `Vary: Origin`. 404s are readable too. The filter route hasn't been tested from a real browser yet. |
+| `/wp/v2/posts` | Readable | Echoes the `Origin`. |
+| `/wp/v1/unidades-atividades` | **Unreliable** | No `Vary: Origin`. A script sees the header, but a real browser got none, and I couldn't reproduce why. This project keeps a fixed copy of the units in `web/regions.js`. |
+| `/editorial/emcartaz/` | Not readable | No CORS header, so use the posts route, which has the same content. |
+| Booklet PDFs | Readable | `Access-Control-Allow-Origin: *`. |
+
+Responses aren't compressed and are sent with `no-store`, so browsers can't cache them. The listing is about 340 KB, and a `detail` response up to about 13 KB.
 
 ## Fields in `detail`
 
@@ -47,6 +72,7 @@ Use the `*Fmt` fields. The matching epoch fields are not all reliable: `dataInic
 - **New plays can appear only hours before their sale.** *A Avó Inventada* and *Cão* were missing from the API at about 13:00 and present at 16:57, for a sale opening at 17:00. A web page can exist before the API record does.
 - **Errors can arrive as HTTP 200.** `/wp/v1/dinamico` returned an error message as a JSON string.
 - **The listing's `qtdeIngressosWeb` is a total** across an activity's sessions.
+- **A listing row can have no unit.** One free activity had `unidade: [{"name": null, "link": null}]`.
 - **Listings can contain `null` rows.** On 2026-11-04, the last two of 559 shows were `null`, and `total.value` still counted them.
 - **Data glitches exist.** Examples: a session listed at `00:00`, and an in-person sale date earlier than the online one.
 - **Sessions of one activity can open at different times, even on the same day.** On 2026-11-04, the Nov 29 session of *Farinha com Açúcar* opened at `2026-11-10T08:00` and its other six at `17:00`. Sesc's page shows the same times, so this isn't an API error. It was the only one of 68 plays checked that day. This project uses only the premiere's opening.
@@ -78,6 +104,8 @@ Neither source is complete. Only about half of the API's ticketed plays appeared
 
 The archive page lists editions newest first, and filenames vary, so take the first link rather than guessing a name.
 
+Sizes vary a lot: the August, October and November 2026 editions were 22.4, 16.5 and 3.3 MB. Partial downloads don't help. The server accepts range requests, but reading just the text with `pdf.js` still touched nearly the whole file (22.3 of 22.4 MB for August).
+
 ### Reading *Em Cartaz*
 
 The PDF's plain text is noisy, with page headers and photo captions mixed in. Fonts are the reliable signal. These held across the August, October and November 2026 editions, though the font names' prefixes change, so match the part after the `+`:
@@ -97,6 +125,13 @@ Things to watch for:
 - **Sidebars can break sections.** "Artes Cênicas à Tarde" sits inside the dance section, so reading it as a theatre section pulls in dance pieces.
 - **Plays in a series may have no price of their own,** and share the series heading's.
 - **Printed dates can be wrong.** The November edition has *Farinha com Açúcar* from Nov 26, while the API has sessions from Nov 20.
+
+### Reading it with `pdf.js`
+
+Against the Python parser on `master`, which uses `pdfplumber`, the entries matched on 126 of 126 across those three editions. Two things took care:
+
+- **Age badges are merged into nearby text.** `A12` and `AL` are printed at size 6 inside schedules at 8.5. `pdf.js` merges text in the same font on a line and reports only the first size, so `25/10. A14` looks entirely normal and `A14 GRÁTIS.` looks entirely small. Treated naively, the second one hides that a play is free.
+- **Real font names come late.** They're only available from `page.commonObjs` after `page.getOperatorList()`, which processes the page's images too. So do that for as few pages as possible, and open the document with `fontExtraProperties: true`.
 
 ## Other endpoints
 
