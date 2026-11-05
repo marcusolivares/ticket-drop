@@ -1,2 +1,0 @@
-# Reads the Em Cartaz booklet. Without it, the page is built from the API alone.
-pdfplumber==0.11.10
