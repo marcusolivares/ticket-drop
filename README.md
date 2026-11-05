@@ -73,7 +73,7 @@ The booklet can list plays days or weeks before the API does, so the page shows 
 
 The API always wins: once it lists a play, the forecast is dropped and the real date is used. In the one comparison so far, 9 of 12 forecasts were right and 3 were a week off, including one that was a week too late, because the booklet's dates differed from the API's. That's why the page tells people to confirm with Sesc.
 
-Forecasts are added last, so they never delay the main list. Booklets have ranged from 3 to 22 MB, so a booklet over 8 MB, or any booklet for a visitor with their browser's data saver on, waits for a button that states its size. Each device reads an edition once. `pdf.js` is only downloaded when a booklet is read.
+Forecasts are added last, so they never delay the main list. Each device downloads and reads an edition once, by itself. Booklets have ranged from 3 to 22 MB, so that can use a lot of mobile data, and visitors can't opt out. `pdf.js` is only downloaded when a booklet is read.
 
 Only the theatre section of *Em Cartaz* is read. It focuses on the capital, so there are few forecasts for other regions.
 

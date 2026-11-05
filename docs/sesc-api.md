@@ -104,7 +104,7 @@ Neither source is complete. Only about half of the API's ticketed plays appeared
 
 The archive page lists editions newest first, and filenames vary, so take the first link rather than guessing a name.
 
-Sizes vary a lot: the August, October and November 2026 editions were 22.4, 16.5 and 3.3 MB. Partial downloads don't help. The server accepts range requests, but reading just the text with `pdf.js` still touched nearly the whole file (22.3 of 22.4 MB for August).
+Sizes vary a lot: the August, October and November 2026 editions were 22.4, 16.5 and 3.3 MB. Partial downloads don't help. The server accepts range requests, but reading just the text with `pdf.js` still touched nearly the whole file (22.3 of 22.4 MB for August). A browser can't check the size first, either: it accepts compression, so a `HEAD` response for a PDF has `Content-Encoding: br` and no `Content-Length`.
 
 ### Reading *Em Cartaz*
 

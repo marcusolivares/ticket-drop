@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
 
 import { MIN_ENTRIES } from "../web/booklet.js";
-import { AUTO_BOOKLET_BYTES, MAX_AGE_MS, compareDrops, loadPlays } from "../web/load.js";
+import { MAX_AGE_MS, compareDrops, loadPlays } from "../web/load.js";
 import { ApiError, StoppedError } from "../web/sesc.js";
 import { createStore } from "../web/store.js";
 
@@ -67,19 +67,14 @@ class FakeClient {
     return result;
   }
 
-  // The booklet: `booklet` sets its address and size, or an Error to fail.
-  booklet = { url: BOOKLET_URL, size: 3_000_000 };
-  bookletCalls = { archive: 0, size: 0, file: 0 };
+  // The booklet: `booklet` sets its address, or an Error to fail.
+  booklet = { url: BOOKLET_URL };
+  bookletCalls = { archive: 0, file: 0 };
 
   async getBookletArchive() {
     this.bookletCalls.archive += 1;
     if (this.booklet instanceof Error) throw this.booklet;
     return `<a href="${this.booklet.url}">PDF</a>`;
-  }
-
-  async getFileSize() {
-    this.bookletCalls.size += 1;
-    return this.booklet.size;
   }
 
   async getFile(url) {
@@ -142,7 +137,6 @@ describe("loadPlays", () => {
       failed: 0,
       problem: null,
       bookletProblem: false,
-      bookletOffer: null,
     });
   });
 
@@ -351,13 +345,12 @@ describe("loadPlays", () => {
       assert.equal(client.bookletCalls.archive, 0);
     });
 
-    test("come from a small booklet automatically", async () => {
+    test("come from the booklet automatically", async () => {
       const client = new FakeClient([play("cao")]);
       const result = await load(client, { readPdf });
       assert.deepEqual(forecasts(result), ["Reality Show"]);
       assert.equal(result.dataset.drops.find((drop) => drop.estimated).url, `${BOOKLET_URL}#page=28`);
       assert.equal(client.bookletCalls.file, 1);
-      assert.equal(result.status.bookletOffer, null);
       assert.equal(result.status.bookletProblem, false);
     });
 
@@ -415,7 +408,7 @@ describe("loadPlays", () => {
         time += MAX_AGE_MS.listing;
         const client = new FakeClient([play("cao")]);
         const result = await load(client, { readPdf });
-        assert.deepEqual(client.bookletCalls, { archive: 0, size: 0, file: 0 });
+        assert.deepEqual(client.bookletCalls, { archive: 0, file: 0 });
         assert.deepEqual(forecasts(result), ["Reality Show"]);
       });
 
@@ -424,14 +417,14 @@ describe("loadPlays", () => {
         time += MAX_AGE_MS.booklet;
         const client = new FakeClient([play("cao")]);
         await load(client, { readPdf });
-        assert.deepEqual(client.bookletCalls, { archive: 1, size: 0, file: 0 });
+        assert.deepEqual(client.bookletCalls, { archive: 1, file: 0 });
       });
 
       test("is replaced by a new edition", async () => {
         await load(new FakeClient([play("cao")]), { readPdf });
         time += MAX_AGE_MS.booklet;
         const client = new FakeClient([play("cao")]);
-        client.booklet = { url: BOOKLET_URL.replace("em-cartaz", "dezembro"), size: 1000 };
+        client.booklet.url = BOOKLET_URL.replace("em-cartaz", "dezembro");
         const result = await load(client, { readPdf: async () => bookletWords("Peça Nova") });
         assert.deepEqual(forecasts(result), ["Peça Nova"]);
       });
@@ -440,7 +433,7 @@ describe("loadPlays", () => {
         await load(new FakeClient([play("cao")]), { readPdf });
         time += MAX_AGE_MS.booklet;
         const client = new FakeClient([play("cao")]);
-        client.booklet = { url: BOOKLET_URL.replace("em-cartaz", "dezembro"), size: 1000 };
+        client.booklet.url = BOOKLET_URL.replace("em-cartaz", "dezembro");
         const broken = async () => {
           throw new Error("not a PDF");
         };
@@ -451,63 +444,6 @@ describe("loadPlays", () => {
         assert.deepEqual(forecasts(result), ["Reality Show"]);
         assert.equal(result.status.bookletProblem, true);
         assert.equal(result.status.problem, null);
-      });
-    });
-
-    describe("a large booklet", () => {
-      const large = () => {
-        const client = new FakeClient([play("cao")]);
-        client.booklet = { url: BOOKLET_URL, size: AUTO_BOOKLET_BYTES + 1 };
-        return client;
-      };
-
-      test("waits for the visitor to ask", async () => {
-        const client = large();
-        const result = await load(client, { readPdf });
-        assert.deepEqual(result.status.bookletOffer, { size: AUTO_BOOKLET_BYTES + 1 });
-        assert.deepEqual(forecasts(result), []);
-        assert.equal(client.bookletCalls.file, 0);
-      });
-
-      test("is read once the visitor asks", async () => {
-        const client = large();
-        await load(client, { readPdf });
-        const result = await load(client, { readPdf, allowLargeBooklet: true });
-        assert.deepEqual(forecasts(result), ["Reality Show"]);
-        assert.equal(result.status.bookletOffer, null);
-        assert.equal(client.bookletCalls.file, 1);
-      });
-
-      test("isn't checked on every reload while waiting", async () => {
-        const client = large();
-        await load(client, { readPdf });
-        const result = await load(client, { readPdf });
-        assert.equal(client.bookletCalls.archive, 1);
-        assert.deepEqual(result.status.bookletOffer, { size: AUTO_BOOKLET_BYTES + 1 });
-      });
-
-      test("keeps forecasts from the last edition while waiting", async () => {
-        await load(new FakeClient([play("cao")]), { readPdf });
-        time += MAX_AGE_MS.booklet;
-        const client = large();
-        client.booklet.url = BOOKLET_URL.replace("em-cartaz", "dezembro");
-        const result = await load(client, { readPdf });
-        assert.deepEqual(forecasts(result), ["Reality Show"]);
-        assert.ok(result.status.bookletOffer);
-      });
-
-      test("is offered if its size is unknown", async () => {
-        const client = large();
-        client.booklet.size = null;
-        const result = await load(client, { readPdf });
-        assert.deepEqual(result.status.bookletOffer, { size: null });
-      });
-
-      test("a visitor saving data is asked about any booklet", async () => {
-        const client = new FakeClient([play("cao")]);
-        const result = await load(client, { readPdf, autoBookletBytes: 0 });
-        assert.ok(result.status.bookletOffer);
-        assert.equal(client.bookletCalls.file, 0);
       });
     });
 

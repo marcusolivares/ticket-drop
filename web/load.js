@@ -33,10 +33,6 @@ export const MAX_AGE_MS = {
   failedBooklet: 60 * MINUTE_MS,
 };
 
-// Booklets have ranged from 3 to 22 MB. Larger ones wait for the visitor to ask,
-// since many of them will be on a phone.
-export const AUTO_BOOKLET_BYTES = 8 * 1000 * 1000;
-
 const SAVE_EVERY = 10;
 const LISTING_FIELDS = [
   "id",
@@ -89,34 +85,20 @@ async function readListing(client, store, window, now) {
   return { items, wasFetched: true };
 }
 
-/**
- * Return the latest booklet's entries, reading it only if it's new to this device.
- *
- * If it's too large to download without asking, also return an `offer` with its
- * size, along with any older booklet still saved.
- */
-async function readBooklet({ client, store, readPdf, now, autoBytes, allowLarge }) {
+/** Return the latest booklet's entries, reading it only if it's new to this device. */
+async function readBooklet({ client, store, readPdf, now }) {
   const saved = store.read("booklet");
-  if (saved && isFresh(saved.checkedAt, MAX_AGE_MS.booklet, now)) return { booklet: saved };
-  const offered = store.read("bookletOffer");
-  if (!allowLarge && offered && isFresh(offered.checkedAt, MAX_AGE_MS.booklet, now)) {
-    return { booklet: saved, offer: { size: offered.size } };
-  }
+  if (saved && isFresh(saved.checkedAt, MAX_AGE_MS.booklet, now)) return saved;
 
   const url = latestBookletUrl(await client.getBookletArchive());
   if (saved?.url === url) {
     const booklet = { ...saved, checkedAt: now };
     store.write("booklet", booklet);
-    return { booklet };
+    return booklet;
   }
   const failure = store.read("failedBooklet");
   if (failure?.url === url && isFresh(failure.failedAt, MAX_AGE_MS.failedBooklet, now)) {
     throw new BookletError("this edition couldn't be read recently, so it isn't being downloaded again yet");
-  }
-  const size = await client.getFileSize(url);
-  if (!allowLarge && (size === null || size > autoBytes)) {
-    store.write("bookletOffer", { size, checkedAt: now });
-    return { booklet: saved, offer: { size } };
   }
 
   try {
@@ -127,7 +109,7 @@ async function readBooklet({ client, store, readPdf, now, autoBytes, allowLarge 
     }
     const booklet = { url, edition: findEdition(runs), entries, checkedAt: now };
     store.write("booklet", booklet);
-    return { booklet };
+    return booklet;
   } catch (error) {
     store.write("failedBooklet", { url, failedAt: now });
     throw error;
@@ -142,8 +124,7 @@ async function readBooklet({ client, store, readPdf, now, autoBytes, allowLarge 
  * "offline" (the list itself couldn't be fetched).
  *
  * Forecasts are added last, so the booklet never delays the main list. They need
- * `readPdf`, which turns a PDF's bytes into words. A booklet larger than
- * `autoBookletBytes` is only read if `allowLargeBooklet` is set.
+ * `readPdf`, which turns a PDF's bytes into words.
  */
 export async function loadPlays({
   client,
@@ -152,8 +133,6 @@ export async function loadPlays({
   days = WINDOW_DAYS,
   onUpdate = () => {},
   readPdf = null,
-  autoBookletBytes = AUTO_BOOKLET_BYTES,
-  allowLargeBooklet = false,
 }) {
   const started = clock();
   const today = saoPauloDay(started);
@@ -233,21 +212,11 @@ export async function loadPlays({
   save();
 
   let bookletProblem = false;
-  let bookletOffer = null;
   if (readPdf) {
     onUpdate(dataset(), { phase: "loading", readingBooklet: true, done, total: pending.length, failed, problem: null, updatedAt });
     let booklet;
     try {
-      const result = await readBooklet({
-        client,
-        store,
-        readPdf,
-        now: clock().getTime(),
-        autoBytes: autoBookletBytes,
-        allowLarge: allowLargeBooklet,
-      });
-      booklet = result.booklet;
-      bookletOffer = result.offer ?? null;
+      booklet = await readBooklet({ client, store, readPdf, now: clock().getTime() });
     } catch (error) {
       console.warn("Couldn't read the booklet:", error);
       bookletProblem = true;
@@ -266,5 +235,5 @@ export async function loadPlays({
       save();
     }
   }
-  return finish({ done, total: pending.length, failed, problem: failed ? "partial" : null, bookletProblem, bookletOffer });
+  return finish({ done, total: pending.length, failed, problem: failed ? "partial" : null, bookletProblem });
 }

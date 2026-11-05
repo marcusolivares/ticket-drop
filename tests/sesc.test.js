@@ -155,17 +155,6 @@ describe("booklet files", () => {
     await assert.rejects(makeClient(fakeFetch(respond([]))).client.getBookletArchive(), ApiError);
   });
 
-  test("asks for a file's size without downloading it", async () => {
-    const fetch = fakeFetch({ status: 200, ok: true, headers: new Map([["content-length", "3256530"]]) });
-    assert.equal(await makeClient(fetch).client.getFileSize(PDF), 3256530);
-    assert.equal(fetch.calls[0].options.method, "HEAD");
-  });
-
-  test("copes with a server that doesn't state the size", async () => {
-    const fetch = fakeFetch({ status: 200, ok: true, headers: new Map() });
-    assert.equal(await makeClient(fetch).client.getFileSize(PDF), null);
-  });
-
   test("downloads a file", async () => {
     const fetch = fakeFetch({ status: 200, ok: true, arrayBuffer: async () => "the bytes" });
     assert.equal(await makeClient(fetch).client.getFile(PDF), "the bytes");
@@ -176,7 +165,6 @@ describe("booklet files", () => {
     const { client } = makeClient(fetch);
     await assert.rejects(async () => client.getFile("https://example.com/x.pdf"), ApiError);
     await assert.rejects(async () => client.getFile("https://www.sescsp.org.br.example.com/x.pdf"), ApiError);
-    await assert.rejects(async () => client.getFileSize("https://example.com/x.pdf"), ApiError);
     assert.equal(fetch.calls.length, 0);
   });
 });

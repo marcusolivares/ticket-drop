@@ -117,14 +117,6 @@ export class SescClient {
     return html;
   }
 
-  /** Return a file's size in bytes, or null if the server doesn't say. */
-  async getFileSize(url) {
-    return this.#get(requireSiteUrl(url), {
-      method: "HEAD",
-      read: (response) => Number(response.headers.get("content-length")) || null,
-    });
-  }
-
   /** Download a file from the Sesc site. */
   async getFile(url) {
     return this.#get(requireSiteUrl(url), { read: (response) => response.arrayBuffer(), timeout: FILE_TIMEOUT_MS });
@@ -142,13 +134,13 @@ export class SescClient {
     }
   }
 
-  async #fetchWithRetries(url, { method = "GET", read = (response) => response.json(), timeout = this.#timeout }) {
+  async #fetchWithRetries(url, { read = (response) => response.json(), timeout = this.#timeout }) {
     let failure;
     for (let attempt = 1; attempt <= this.#attempts; attempt += 1) {
       this.#throwIfStopped();
       let response;
       try {
-        response = await this.#fetch(url, { method, credentials: "omit", signal: AbortSignal.timeout(timeout) });
+        response = await this.#fetch(url, { credentials: "omit", signal: AbortSignal.timeout(timeout) });
         if (response.status === 404) {
           this.#failuresInARow = 0;
           throw new NotFoundError(url);

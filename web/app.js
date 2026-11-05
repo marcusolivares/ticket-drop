@@ -1,6 +1,6 @@
 // The page: everything the visitor sees. Text from the API only reaches the page as text nodes.
 
-import { AUTO_BOOKLET_BYTES, loadPlays } from "./load.js";
+import { loadPlays } from "./load.js";
 import { readPdfWords } from "./pdf-words.js";
 import { SITE_URL } from "./plays.js";
 import { REGIONS } from "./regions.js";
@@ -287,26 +287,16 @@ function render() {
   renderStatus();
 }
 
-function megabytes(size) {
-  return `${(size / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
-}
-
-function progressContent() {
-  const { phase, done, total, readingBooklet, bookletOffer } = status;
-  if (phase === "loading") {
-    if (readingBooklet) return "Lendo o livreto Em Cartaz…";
-    return total ? `Verificando peças no site do Sesc: ${number(done)} de ${number(total)}` : "Buscando a lista de peças no site do Sesc…";
-  }
-  if (!bookletOffer) return "";
-  const size = bookletOffer.size ? ` (${megabytes(bookletOffer.size)})` : "";
-  const button = el("button", { type: "button", class: "offer" }, `Ver previsões do livreto Em Cartaz${size}`);
-  button.addEventListener("click", () => start({ allowLargeBooklet: true }));
-  return button;
+function progressText() {
+  const { phase, done, total, readingBooklet } = status;
+  if (phase !== "loading") return "";
+  if (readingBooklet) return "Lendo o livreto Em Cartaz…";
+  return total ? `Verificando peças no site do Sesc: ${number(done)} de ${number(total)}` : "Buscando a lista de peças no site do Sesc…";
 }
 
 function renderStatus() {
   const { problem, failed, updatedAt, bookletProblem } = status;
-  $("progress").replaceChildren(progressContent());
+  $("progress").textContent = progressText();
   $("updated").textContent = updatedAt ? `Atualizado em ${dateTimeText(updatedAt)}.` : "";
 
   const programme = el("a", { href: PROGRAMME_URL, target: "_blank", rel: "noopener" }, "programação do Sesc");
@@ -367,26 +357,11 @@ $("filters").addEventListener("submit", (event) => event.preventDefault());
 $("search").addEventListener("input", render);
 $("unit").addEventListener("change", render);
 
-const client = new SescClient();
-const store = createStore();
-
-function start(options = {}) {
-  return loadPlays({
-    client,
-    store,
-    readPdf: readPdfWords,
-    // Respect a visitor who has asked their browser to save data.
-    autoBookletBytes: navigator.connection?.saveData ? 0 : AUTO_BOOKLET_BYTES,
-    onUpdate: update,
-    ...options,
-  }).catch((error) => {
-    console.error(error);
-    update(data, { phase: "done", done: 0, total: 0, failed: 0, problem: "offline", updatedAt: data.generated_at });
-  });
-}
-
 // The first update arrives right away, with any saved plays, and draws the page.
-start();
+loadPlays({ client: new SescClient(), store: createStore(), readPdf: readPdfWords, onUpdate: update }).catch((error) => {
+  console.error(error);
+  update(data, { phase: "done", done: 0, total: 0, failed: 0, problem: "offline", updatedAt: data.generated_at });
+});
 
 // Keep the countdowns current, and offer the buy button as soon as a sale opens.
 setInterval(() => {
