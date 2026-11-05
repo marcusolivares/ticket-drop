@@ -1,0 +1,13 @@
+{
+  "name": "ticket-drop",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Find out when tickets for Sesc São Paulo plays go on sale.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
