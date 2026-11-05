@@ -98,7 +98,7 @@ Only the theatre section of *Em Cartaz* is read. It focuses on the capital, so t
 | `web/pdf-words.js` | Reads a PDF into styled words, using `pdf.js` |
 | `web/store.js` | Saves results on the device |
 | `web/regions.js` | The fixed list of units and their regions |
-| `web/vendor/pdfjs/` | An unmodified copy of [`pdf.js`](https://github.com/mozilla/pdf.js) 6.4.299 (`build/pdf.min.mjs` and `build/pdf.worker.min.mjs`) |
+| `web/vendor/pdfjs/` | An unmodified copy of [`pdf.js`](https://github.com/mozilla/pdf.js) 6.4.299 (`legacy/build/pdf.min.mjs` and `legacy/build/pdf.worker.min.mjs`). The legacy build also works in older browsers |
 | `tests/` | Unit tests, run by `node --test` |
 | `tests/browser/` | The browser test, with its mock of the API and recorded responses |
 | `docs/sesc-api.md` | **Read this first.** What's known about the undocumented API |

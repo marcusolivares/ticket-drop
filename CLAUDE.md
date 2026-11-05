@@ -28,4 +28,5 @@ Read `README.md` for how it works, and `docs/sesc-api.md` before changing anythi
 - **The mock can hide real behaviour.** A size check passed every test but failed for every real visitor, because Sesc sends compressed PDFs to clients that accept them, with no `Content-Length`. When something depends on response headers, also check the real ones with `curl`, sending the headers a browser sends (`Accept-Encoding`, `Origin`).
 - **Sesc's data has surprises.** Listings can have null rows or rows with no unit, and a play's sessions can open at different times. Only the premiere counts. `docs/sesc-api.md` has the details.
 - **Visitors' results are saved in `localStorage`** under `quando-abre:v1:`. If the saved shape changes, change the version in `web/store.js`.
+- **`pdf.js` has two builds.** The standard one has no fallbacks for newer JavaScript features, so it only works in very recent browsers, and without them it can stall rather than report an error. `web/vendor/pdfjs/` holds the `legacy` one, so keep using that when updating it.
 - **The list of units in `web/regions.js` is fixed,** so a new Sesc unit has to be added by hand.
