@@ -2,7 +2,7 @@
 
 Find out when tickets for Sesc São Paulo plays go on sale.
 
-Tickets for popular plays can sell out quickly, so it helps to know the moment they go on sale. Ticket Drop finds that moment for plays in the next 30 days, based on each play's premiere. It's a static page in Portuguese, called *Quando Abre*. Each visitor's browser fetches the data directly from Sesc when the page opens, so there's no server and nothing to schedule.
+Tickets for popular plays can sell out quickly, so it helps to know the moment they go on sale. Ticket Drop finds that moment for plays in the next 30 days, based on each play's premiere. It's a static page in Portuguese, called *Quando abre a estreia?*. Each visitor's browser fetches the data directly from Sesc when the page opens, so there's no server and nothing to schedule.
 
 This is an unofficial project with no connection to Sesc. It only shows public information and links to Sesc's own site. It doesn't buy tickets, and it should stay that way.
 
