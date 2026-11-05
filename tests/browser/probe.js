@@ -59,6 +59,8 @@ function interact(report) {
   report.interior = cardsFor(unit, "region:interior").length;
   report.coast = cardsFor(unit, "region:litoral").length;
   report.all = cardsFor(unit, "").length;
+  report.unitChoices = [...unit.options].filter((option) => option.value && !option.value.startsWith("region:")).length;
+  report.santana = [cardsFor(unit, "santana").length, text(".empty")];
   cardsFor(unit, "region:capital");
 }
 

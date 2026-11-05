@@ -285,6 +285,8 @@ def test_first_visit(browser, site_origin):
     check('cards in the interior', visit.get('interior'), 12)
     check('cards on the coast', visit.get('coast'), 2)
     check('cards in all regions', visit.get('all'), 27)
+    check('every unit can be chosen', visit.get('unitChoices'), 44)
+    check('a unit with nothing to open says so', visit.get('santana'), [0, 'Nenhuma abertura prevista em Santana. Experimente outra região.'])
     check('search finds a play', visit.get('search'), ['Farinha com Açúcar ou Sobre a Sustança de Meninos e Homens'])
     check('premiere rule on Farinha', '20 a 28 nov · 5 datas · temporada até 29 nov' in visit.get('farinha', ''))
     check('forecasts', [(row['title'], row['unit'], row['sale']) for row in visit.get('forecasts', [])], FORECASTS)

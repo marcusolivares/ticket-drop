@@ -104,7 +104,7 @@ Only the theatre section of *Em Cartaz* is read. It focuses on the capital, so t
 | `docs/sesc-api.md` | **Read this first.** What's known about the undocumented API |
 | `.github/workflows/deploy.yml` | Tests and deploys on every push |
 
-The fixed list of units needs updating if Sesc opens a new one. Until then, the new unit's plays appear under "Todas as regiões", but not under a region, and it gets no forecasts.
+The fixed list of units needs updating if Sesc opens a new one. Until then, the new unit's plays appear under "Todas as regiões", but not under a region, the unit can't be chosen, and it gets no forecasts.
 
 ## Publishing
 

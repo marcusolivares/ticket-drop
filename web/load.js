@@ -8,7 +8,6 @@ import { BookletError, MIN_ENTRIES, buildEstimates, findEdition, latestBookletUr
 import {
   addDays,
   buildDrop,
-  cleanText,
   isTicketed,
   mightStillOpen,
   saoPauloDay,
@@ -16,7 +15,7 @@ import {
   slugOf,
   unitSlugOf,
 } from "./plays.js";
-import { REGIONS, UNIT_REGIONS } from "./regions.js";
+import { UNIT_REGIONS } from "./regions.js";
 import { StoppedError } from "./sesc.js";
 import { isFresh } from "./store.js";
 
@@ -62,15 +61,6 @@ export function compareDrops(a, b) {
 
 function keepFields(item) {
   return Object.fromEntries(LISTING_FIELDS.map((field) => [field, item[field]]));
-}
-
-function listUnits(plays) {
-  const units = new Map();
-  for (const item of plays) {
-    const slug = unitSlugOf(item);
-    units.set(slug, { slug, name: cleanText(item.unidade[0].name), region: UNIT_REGIONS[slug] ?? "" });
-  }
-  return [...units.values()];
 }
 
 /** Every play with a unit, from a saved listing if it's recent enough. */
@@ -141,20 +131,17 @@ export async function loadPlays({
 
   const saved = store.read("plays");
   let entries = saved?.entries ?? {};
-  let units = saved?.units ?? [];
   let updatedAt = saved?.updatedAt ?? null;
   let forecasts = saved?.forecasts ?? [];
 
   const dataset = () => ({
     generated_at: updatedAt,
     window,
-    regions: REGIONS,
-    units,
     drops: [...Object.values(entries).map((entry) => entry.drop), ...forecasts]
       .filter((drop) => drop && drop.online_sale_start > moment)
       .sort(compareDrops),
   });
-  const save = () => store.write("plays", { updatedAt, units, entries, forecasts });
+  const save = () => store.write("plays", { updatedAt, entries, forecasts });
   const finish = (status) => {
     const result = { dataset: dataset(), status: { phase: "done", updatedAt, ...status } };
     onUpdate(result.dataset, result.status);
@@ -171,7 +158,6 @@ export async function loadPlays({
   }
 
   const plays = listing.items.filter((item) => isTicketed(item) && mightStillOpen(item, today));
-  units = listUnits(plays);
   entries = Object.fromEntries(
     plays.map(slugOf).filter((slug) => slug in entries).map((slug) => [slug, entries[slug]]),
   );

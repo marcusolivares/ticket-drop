@@ -127,7 +127,6 @@ describe("loadPlays", () => {
     assert.equal(dataset.drops.length, 1);
     assert.equal(dataset.drops[0].region, "capital");
     assert.deepEqual(dataset.window, { start: "2026-11-05", end: "2026-12-05", days: 30 });
-    assert.equal(dataset.regions.capital, "Capital e Grande SP");
     assert.equal(dataset.generated_at, NOW.toISOString());
     assert.deepEqual(status, {
       phase: "done",
@@ -165,9 +164,8 @@ describe("loadPlays", () => {
 
   test("ignores rows with no unit", async () => {
     const client = new FakeClient([play("cao"), play("nowhere", { unidade: [{ name: null, link: null }] })]);
-    const result = await load(client);
+    await load(client);
     assert.deepEqual(client.detailCalls, ["cao"]);
-    assert.equal(result.dataset.units.length, 1);
   });
 
   test("keeps only sales still to open", async () => {
@@ -192,21 +190,6 @@ describe("loadPlays", () => {
       drop("2026-11-10T17:00", "A", "real a"),
     ].sort(compareDrops);
     assert.deepEqual(sorted.map((item) => item.title), ["real a", "real b", "real", "forecast", "first"]);
-  });
-
-  test("lists the units with their regions", async () => {
-    const plays = [
-      play("a"),
-      play("b"),
-      play("c", { unidade: [{ name: "Santos", link: "/unidades/santos" }] }),
-      play("d", { unidade: [{ name: "Nova", link: "/unidades/nova" }] }),
-    ];
-    const { dataset } = await load(new FakeClient(plays));
-    assert.deepEqual(dataset.units, [
-      { slug: "pompeia", name: "Pompeia", region: "capital" },
-      { slug: "santos", name: "Santos", region: "litoral" },
-      { slug: "nova", name: "Nova", region: "" },
-    ]);
   });
 
   test("reports progress as plays arrive", async () => {

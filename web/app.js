@@ -3,11 +3,11 @@
 import { loadPlays } from "./load.js";
 import { readPdfWords } from "./pdf-words.js";
 import { SITE_URL } from "./plays.js";
-import { REGIONS } from "./regions.js";
+import { REGIONS, UNITS } from "./regions.js";
 import { SescClient } from "./sesc.js";
 import { createStore } from "./store.js";
 
-let data = { generated_at: null, regions: REGIONS, units: [], drops: [] };
+let data = { generated_at: null, drops: [] };
 let status = { phase: "loading", done: 0, total: 0, failed: 0, problem: null, updatedAt: null };
 
 const TIME_ZONE = "America/Sao_Paulo";
@@ -276,7 +276,6 @@ function filteredViews() {
 let openCount = 0;
 let renderTimer = null;
 let lastRender = 0;
-let choicesSignature = null;
 
 function render() {
   lastRender = Date.now();
@@ -317,7 +316,6 @@ function renderStatus() {
 function update(dataset, nextStatus) {
   data = dataset;
   status = nextStatus;
-  fillChoices();
   // At most one redraw per interval, however quickly updates arrive. The first
   // one is immediate, so saved plays appear straight away.
   const wait = status.phase === "done" ? 0 : lastRender + RENDER_EVERY_MS - Date.now();
@@ -333,23 +331,18 @@ function update(dataset, nextStatus) {
   }
 }
 
-// The list of units only changes when a new listing arrives, so the choice is kept.
+// Every unit is offered, even with nothing to list, so none seems to be missing.
 function fillChoices() {
-  const signature = JSON.stringify(data.units);
-  if (signature === choicesSignature) return;
   const select = $("unit");
-  const chosen = choicesSignature === null ? DEFAULT_CHOICE : select.value;
-  choicesSignature = signature;
   select.replaceChildren(el("option", { value: "" }, "Todas as regiões"));
-  for (const [region, label] of Object.entries(data.regions)) {
+  for (const [region, label] of Object.entries(REGIONS)) {
     select.append(el("option", { value: `${REGION_PREFIX}${region}`, class: "is-region" }, label));
-    const members = data.units
-      .filter((unit) => unit.region === region)
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-    for (const unit of members) select.append(el("option", { value: unit.slug }, `${UNIT_INDENT}${unit.name}`));
+    const members = Object.entries(UNITS)
+      .filter(([, unit]) => unit.region === region)
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name, "pt-BR"));
+    for (const [slug, unit] of members) select.append(el("option", { value: slug }, `${UNIT_INDENT}${unit.name}`));
   }
-  select.value = chosen;
-  if (select.value !== chosen) select.value = DEFAULT_CHOICE;
+  select.value = DEFAULT_CHOICE;
 }
 
 fillChoices();
