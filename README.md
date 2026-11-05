@@ -24,6 +24,14 @@ Run the tests with Node 20 or newer. There's nothing to install:
 node --test
 ```
 
+There's also a browser test, which needs Python and Chrome. It drives the real page in headless Chrome against a local mock of Sesc's API, using responses recorded on 2026-11-05 and the real November booklet, which it downloads once:
+
+```
+python tests/browser/run.py
+```
+
+Add `--large-booklets` to also read the real 16 and 22 MB editions, and `--screenshots DIR` to save how the page looks. It can't show how the real API behaves today, so check the live page too.
+
 ## How it works
 
 1. **List** theatre activities with a session in the next 30 days.
@@ -91,6 +99,8 @@ Only the theatre section of *Em Cartaz* is read. It focuses on the capital, so t
 | `web/store.js` | Saves results on the device |
 | `web/regions.js` | The fixed list of units and their regions |
 | `web/vendor/pdfjs/` | An unmodified copy of [`pdf.js`](https://github.com/mozilla/pdf.js) 6.4.299 (`build/pdf.min.mjs` and `build/pdf.worker.min.mjs`) |
+| `tests/` | Unit tests, run by `node --test` |
+| `tests/browser/` | The browser test, with its mock of the API and recorded responses |
 | `docs/sesc-api.md` | **Read this first.** What's known about the undocumented API |
 | `.github/workflows/deploy.yml` | Tests and deploys on every push |
 
