@@ -29,6 +29,8 @@ export const MAX_AGE_MS = {
   // Plays can reach the detail route shortly before their sale, so check these sooner.
   missing: 30 * MINUTE_MS,
   booklet: 720 * MINUTE_MS,
+  // Booklets can be large, so one that failed isn't downloaded on every reload.
+  failedBooklet: 60 * MINUTE_MS,
 };
 
 // Booklets have ranged from 3 to 22 MB. Larger ones wait for the visitor to ask,
@@ -107,20 +109,29 @@ async function readBooklet({ client, store, readPdf, now, autoBytes, allowLarge 
     store.write("booklet", booklet);
     return { booklet };
   }
+  const failure = store.read("failedBooklet");
+  if (failure?.url === url && isFresh(failure.failedAt, MAX_AGE_MS.failedBooklet, now)) {
+    throw new BookletError("this edition couldn't be read recently, so it isn't being downloaded again yet");
+  }
   const size = await client.getFileSize(url);
   if (!allowLarge && (size === null || size > autoBytes)) {
     store.write("bookletOffer", { size, checkedAt: now });
     return { booklet: saved, offer: { size } };
   }
 
-  const runs = textRuns(await readPdf(await client.getFile(url)));
-  const entries = parseEntries(runs);
-  if (entries.length < MIN_ENTRIES) {
-    throw new BookletError(`only ${entries.length} theatre entries found, so the layout may have changed`);
+  try {
+    const runs = textRuns(await readPdf(await client.getFile(url)));
+    const entries = parseEntries(runs);
+    if (entries.length < MIN_ENTRIES) {
+      throw new BookletError(`only ${entries.length} theatre entries found, so the layout may have changed`);
+    }
+    const booklet = { url, edition: findEdition(runs), entries, checkedAt: now };
+    store.write("booklet", booklet);
+    return { booklet };
+  } catch (error) {
+    store.write("failedBooklet", { url, failedAt: now });
+    throw error;
   }
-  const booklet = { url, edition: findEdition(runs), entries, checkedAt: now };
-  store.write("booklet", booklet);
-  return { booklet };
 }
 
 /**

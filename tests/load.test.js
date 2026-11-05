@@ -537,6 +537,49 @@ describe("loadPlays", () => {
         assert.equal(result.status.bookletProblem, true);
         assert.deepEqual(titles(result), ["cao"]);
       });
+
+      test("not reaching the archive is tried again on the next reload", async () => {
+        const unreachable = new FakeClient([play("cao")]);
+        unreachable.booklet = new Error("no archive");
+        await quietly(() => load(unreachable, { readPdf }));
+        const client = new FakeClient([play("cao")]);
+        await load(client, { readPdf });
+        assert.equal(client.bookletCalls.file, 1);
+      });
+
+      describe("an edition that couldn't be read", () => {
+        const broken = async () => {
+          throw new Error("not a PDF");
+        };
+        const failOnce = () => quietly(() => load(new FakeClient([play("cao")]), { readPdf: broken }));
+
+        test("isn't downloaded again on the next reload", async () => {
+          await failOnce();
+          const client = new FakeClient([play("cao")]);
+          const result = await quietly(() => load(client, { readPdf }));
+          assert.equal(client.bookletCalls.file, 0);
+          assert.equal(result.status.bookletProblem, true);
+        });
+
+        test("is tried again after a while", async () => {
+          await failOnce();
+          time += MAX_AGE_MS.failedBooklet;
+          const client = new FakeClient([play("cao")]);
+          const result = await load(client, { readPdf });
+          assert.equal(client.bookletCalls.file, 1);
+          assert.deepEqual(forecasts(result), ["Reality Show"]);
+          assert.equal(result.status.bookletProblem, false);
+        });
+
+        test("doesn't hold back a new edition", async () => {
+          await failOnce();
+          const client = new FakeClient([play("cao")]);
+          client.booklet.url = BOOKLET_URL.replace("em-cartaz", "dezembro");
+          const result = await load(client, { readPdf });
+          assert.equal(client.bookletCalls.file, 1);
+          assert.equal(result.status.bookletProblem, false);
+        });
+      });
     });
   });
 

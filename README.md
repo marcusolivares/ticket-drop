@@ -56,6 +56,7 @@ That suits a group of friends, but not wide sharing. If Sesc blocks these reques
 | A play the API didn't have | 30 minutes |
 | Which booklet is the latest | 12 hours |
 | The booklet's parsed entries | Until a new edition appears |
+| A booklet that couldn't be read | 1 hour, before trying again |
 
 ### When something fails
 
