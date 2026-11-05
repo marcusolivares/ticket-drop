@@ -103,8 +103,7 @@ The fixed list of units needs updating if Sesc opens a new one. Until then, the 
 The included workflow publishes to GitHub Pages. To set it up:
 
 1. Go to **Settings > Pages** and set **Source** to **GitHub Actions**.
-2. Go to **Settings > Environments > github-pages**, and add `browser` under **Deployment branches and tags**. GitHub normally only allows the default branch.
-3. Push to `browser`.
+2. Push to `master`.
 
 Every push runs the tests and then deploys. The page gets its data when visitors open it, so there's no schedule.
 
