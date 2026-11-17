@@ -195,10 +195,15 @@ describe("buildEstimates", () => {
     assert.equal(drop.title, "Reality Show");
     assert.equal(drop.online_sale_start, "2026-11-10T17:00");
     assert.equal(drop.url, `${BOOKLET_URL}#page=28`);
-    assert.ok(drop.confirm_url.endsWith("unidades=pompeia"));
+    assert.equal(drop.confirm_url, "https://www.sescsp.org.br/busca/?busca=Reality%20Show");
     assert.deepEqual([drop.unit, drop.unit_slug, drop.region], ["Pompeia", "pompeia", "capital"]);
     assert.deepEqual([drop.price_full, drop.price_half, drop.price_member], [70, 35, 21]);
     assert.equal(drop.schedule, "De 19/11 a 13/12. Quintas a sábados, 20h.");
+  });
+
+  test("searches Sesc for the title, whatever it contains", () => {
+    const [drop] = build([entry({ name: "Quem? Eu & Você" })]);
+    assert.equal(drop.confirm_url, "https://www.sescsp.org.br/busca/?busca=Quem%3F%20Eu%20%26%20Voc%C3%AA");
   });
 
   test("matches booklet unit names in capitals", () => {

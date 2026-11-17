@@ -10,6 +10,9 @@ Be gentle, and only read. Since Sesc began refusing other sites (see [Who can re
 |---|---|
 | `www.sescsp.org.br/wp-json/wp/v2/posts?slug=emcartaz&_fields=content` | The booklet archive page, including links to every edition. |
 | The booklet PDFs it links to | The plays and their dates. See [Booklets](#booklets). |
+| `www.sescsp.org.br/busca/?busca=<title>` | Only linked, so visitors can confirm a forecast. It's Sesc's own search page, which looks the title up from the visitor's browser. `/?s=<text>` just redirects to the home page. |
+
+Play pages, at `/programacao/<slug>/`, can't be linked from a title. Of 137 plays listed on 2026-11-05, only 56 had the slug the title suggests. Others had suffixes such as `macbeth-2`, or were cut short, so a guessed link could open an old season.
 
 Until 2026-11-06, each visitor's browser also used these, at most 3 requests at once and at least 150 ms apart, stopping after 3 failures in a row. They're refused now:
 

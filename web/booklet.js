@@ -10,7 +10,9 @@
 import { SITE_URL, cleanText, ruleSaleDay } from "./plays.js";
 import { UNITS } from "./regions.js";
 
-const PROGRAMME_URL = `${SITE_URL}/programacao/?tipos=shows-espetaculos-e-performances&linguagens=teatro&unidades=`;
+// Sesc's own search page. Play pages can't be linked directly: their addresses
+// often differ from the title, for example with a "-2" for a later season.
+const SEARCH_URL = `${SITE_URL}/busca/?busca=`;
 const BOOKLET_LINK = new RegExp(`${SITE_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/wp-content/uploads/[^"'\\s<>]+\\.pdf`);
 
 // The font weight and size of each kind of text.
@@ -184,7 +186,7 @@ export function buildEstimates({ entries, edition, bookletUrl, moment, today, en
       id: `booklet-${unit.slug}-${normalize(entry.title).replaceAll(" ", "-")}`,
       title: entry.title,
       url: `${bookletUrl}#page=${entry.page}`,
-      confirm_url: PROGRAMME_URL + unit.slug,
+      confirm_url: SEARCH_URL + encodeURIComponent(entry.title),
       unit: unit.name,
       unit_slug: unit.slug,
       region: unit.region,
