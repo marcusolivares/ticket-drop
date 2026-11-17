@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { BookletError, MIN_ENTRIES, findEdition, isKnownUnit, latestBookletUrl, parseEntries, textRuns } from "../web/booklet.js";
 import { SITE_URL } from "../web/plays.js";
-import { readPdfWords } from "../web/pdf-words.js";
+import { readPdfWords } from "./pdf-words.js";
 
 export const USER_AGENT = "ticket-drop (unofficial schedule viewer)";
 const ARCHIVE_URL = `${SITE_URL}/wp-json/wp/v2/posts?slug=emcartaz&_fields=content`;

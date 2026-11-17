@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { parseEntries, textRuns } from "../web/booklet.js";
-import { wordsFromDocument } from "../web/pdf-words.js";
+import { wordsFromDocument } from "../tools/pdf-words.js";
 
 const FONTS = {
   black: "LORBCC+Informative-Black",

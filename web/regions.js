@@ -1,9 +1,8 @@
 // The regions the page offers, and the Sesc units that belong to each.
 //
-// This is a fixed copy of /wp/v1/unidades-atividades. That route can't be relied
-// on from a browser: see docs/sesc-api.md. The page offers every unit here as a
-// choice. A unit missing from this list can't be chosen, and gets no forecasts
-// from the booklet, but its plays still appear under "Todas as regiões".
+// This is a fixed copy of /wp/v1/unidades-atividades (see docs/sesc-api.md). The
+// page offers every unit here as a choice. A unit missing from this list gets no
+// forecasts, and the booklet command names it, so it can be added here.
 
 export const REGIONS = {
   capital: "Capital e Grande SP",
@@ -57,5 +56,3 @@ export const UNITS = {
   taubate: { name: "Taubaté", region: "interior" },
   "vila-mariana": { name: "Vila Mariana", region: "capital" },
 };
-
-export const UNIT_REGIONS = Object.fromEntries(Object.entries(UNITS).map(([slug, unit]) => [slug, unit.region]));

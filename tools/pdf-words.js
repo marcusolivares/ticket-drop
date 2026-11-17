@@ -70,7 +70,12 @@ export async function wordsFromDocument(document) {
   return words;
 }
 
-/** Read a PDF's bytes in the browser. pdf.js is only downloaded if this is called. */
+/**
+ * Read a PDF's bytes. pdf.js is only loaded if this is called.
+ *
+ * In Node, pdf.js warns that it can't load "@napi-rs/canvas". That's only needed
+ * to draw pages, not to read their text.
+ */
 export async function readPdfWords(data) {
   const pdfjs = await import(PDFJS_URL);
   pdfjs.GlobalWorkerOptions.workerSrc = WORKER_URL;

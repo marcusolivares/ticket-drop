@@ -2,15 +2,21 @@
 
 Sesc São Paulo has no documented public API. Everything here was found by inspecting the website, its scripts and the Credencial Sesc SP app, and was last checked on 2026-11-05. Any of it can change without notice.
 
-Be gentle: this project runs at most 3 requests at once, at least 150 ms apart, stops after 3 failures in a row, and only reads.
+Be gentle, and only read. Since Sesc began refusing other sites (see [Who can read it](#who-can-read-it)), visitors' browsers ask Sesc for nothing. Only the booklet command does, from the maintainer's computer: two requests when there's a new edition, and one otherwise.
 
 ## Public endpoints used by this project
 
 | Endpoint | Purpose |
 |---|---|
+| `www.sescsp.org.br/wp-json/wp/v2/posts?slug=emcartaz&_fields=content` | The booklet archive page, including links to every edition. |
+| The booklet PDFs it links to | The plays and their dates. See [Booklets](#booklets). |
+
+Until 2026-11-06, each visitor's browser also used these, at most 3 requests at once and at least 150 ms apart, stopping after 3 failures in a row. They're refused now:
+
+| Endpoint | Purpose |
+|---|---|
 | `www.sescsp.org.br/wp-json/wp/v1/atividades/filter` | Lists activities. Has dates but no sale times. |
 | `www.sescsp.org.br/wp-json/wp/v1/atividades/detail?slug=<slug>` | Sale times, prices and ticket counts per session. |
-| `www.sescsp.org.br/wp-json/wp/v2/posts?slug=emcartaz&_fields=content` | The booklet archive page, including links to every edition. |
 
 To list plays:
 
@@ -43,7 +49,7 @@ Both `filter` and `detail` were refused. The home page and `/wp/v2/posts` still 
 
 **On 2026-11-16, nothing had changed for this project.** A script on a home connection, with an honest User-Agent, still got `403` from `filter`, and `/wp/v2/posts` still answered `200`. But in desktop Chrome, `www.sescsp.org.br/programacao` got `200` from its own requests to `filter` and `dinamico`. So the route still works for Sesc's own pages, and the block is aimed at everyone else. Don't copy what Sesc's pages send to get past it.
 
-**By 2026-11-17, other sites couldn't read the booklet either.** `/wp/v2/posts` and the booklet PDFs still answer `200`, but send no `Access-Control-Allow-Origin` for any `Origin`, so a browser on another site gets a CORS error. A script still reads both.
+**By 2026-11-17, other sites couldn't read the booklet either.** `/wp/v2/posts` and the booklet PDFs still answer `200`, but send no `Access-Control-Allow-Origin` for any `Origin`, so a browser on another site gets a CORS error. A script still reads both, so the booklet is now read on the maintainer's computer, and the page only shows forecasts.
 
 CORS, by route:
 

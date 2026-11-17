@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { describe, test } from "node:test";
 
 import { USER_AGENT, updateBooklet } from "../tools/update-booklet.js";
@@ -6,6 +8,8 @@ import { MIN_ENTRIES } from "../web/booklet.js";
 
 const ARCHIVE_URL = "https://www.sescsp.org.br/wp-json/wp/v2/posts?slug=emcartaz&_fields=content";
 const LATEST = "https://www.sescsp.org.br/wp-content/uploads/2026/10/V13_Em-Cartaz_2026_novembro_VF.pdf";
+const CACHED_NOVEMBER = new URL("./browser/.cache/november.pdf", import.meta.url);
+const BROWSER_TEST_BOOKLET = new URL("./browser/booklet.json", import.meta.url);
 
 const words = (text, weight, size) =>
   text.split(" ").map((word) => ({ text: word, fontname: `X+Informative-${weight}`, size, page: 28 }));
@@ -87,5 +91,14 @@ describe("updateBooklet", () => {
   test("only takes a booklet from Sesc's site", async () => {
     const sesc = fakeSesc({ archive: [{ content: { rendered: '<a href="https://example.com/em-cartaz.pdf">PDF</a>' } }] });
     await assert.rejects(updateBooklet({ fetch: sesc.fetch }), /no booklet link/);
+  });
+});
+
+// The browser test downloads this once. It's Sesc's file, so it isn't in the repository.
+describe("the real November booklet", { skip: !existsSync(CACHED_NOVEMBER) && "run python tests/browser/run.py to download it" }, () => {
+  test("is read the same as the browser test's copy", async () => {
+    const sesc = fakeSesc({ pdf: await readFile(CACHED_NOVEMBER) });
+    const booklet = await updateBooklet({ fetch: sesc.fetch });
+    assert.deepEqual(booklet, JSON.parse(await readFile(BROWSER_TEST_BOOKLET, "utf8")));
   });
 });

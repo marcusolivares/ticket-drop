@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""Drive the real page in headless Chrome against a local mock of Sesc's API.
+"""Drive the real page in headless Chrome, with a fixed copy of the booklet's entries.
 
-Sesc refuses headless Chrome, so this is as close as an automated test can get. It
-serves a copy of `web/` that differs only in where it points, with the mock on a
-separate origin, so CORS and the Content-Security-Policy really apply. Its responses
-were recorded on 2026-11-05, and the page's clock is moved to that day.
+The page only loads booklet.json from its own site. This serves a copy of `web/`
+whose booklet.json is `tests/browser/booklet.json`, from the November 2026 edition,
+and moves the page's clock to 2026-11-05, while that edition was current.
 
-It can't show how the real API behaves today, so that still needs a person.
+    python tests/browser/run.py [--screenshots DIR]
 
-    python tests/browser/run.py [--large-booklets] [--screenshots DIR]
-
-Needs Python 3.10 or newer and Chrome (set CHROME if it isn't found). The booklets are
-Sesc's own PDFs, so they aren't in this repository. Each one is downloaded once, into
-a folder git ignores.
+Needs Python 3.10 or newer and Chrome (set CHROME if it isn't found). It also
+downloads the November booklet from Sesc once, into a folder git ignores, so that
+`node --test` can check the booklet command still reads it the same way. It's
+Sesc's file, so it isn't in this repository.
 """
 import argparse
-import datetime
+import functools
 import html
 import http.server
 import json
@@ -26,7 +24,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import urllib.parse
 import urllib.request
 import uuid
@@ -34,100 +31,43 @@ import uuid
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 CACHE = HERE / '.cache'
-RECORDED_AT = '2026-11-05T12:00:00-03:00'
-BOOKLETS = {
-    'november': 'https://www.sescsp.org.br/wp-content/uploads/2026/10/V13_Em-Cartaz_2026_novembro_VF.pdf',
-    'october': 'https://www.sescsp.org.br/wp-content/uploads/2026/09/Em-Cartaz_2026_outubro.pdf',
-    'august': 'https://www.sescsp.org.br/wp-content/uploads/2026/07/Em-Cartaz_2026_agosto.pdf',
-}
+NOVEMBER_URL = 'https://www.sescsp.org.br/wp-content/uploads/2026/10/V13_Em-Cartaz_2026_novembro_VF.pdf'
+CURRENT = '2026-11-05T12:00:00-03:00'
 OUTPUT_MARK = '<pre id="test-output">'
 GIF = bytes.fromhex('47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b')
 
-state = {'mode': 'ok', 'latency': 0.03, 'storage': {}, 'pdf': b''}
-stats = {}
+state = {'booklet': True}
 release = threading.Event()
 failures = []
-recorded = {}
-
-
-def reset_stats():
-    stats.update(listing=0, detail=0, archive=0, pdf=0, in_flight=0, peak=0, starts=[], origins=set())
-
-
-class Api(http.server.BaseHTTPRequestHandler):
-    """Stands in for Sesc, and also carries results between visits."""
-
-    protocol_version = 'HTTP/1.1'
-
-    def do_POST(self):
-        state['storage'] = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-        release.set()
-        self.reply(200, b'{}', self.headers.get('Origin'))
-
-    def do_GET(self):
-        parsed = urllib.parse.urlsplit(self.path)
-        origin = self.headers.get('Origin')
-        if parsed.path == '/__hold':
-            # The page's load event waits for this image, so Chrome waits for the page to finish.
-            release.wait(180)
-            self.reply(200, GIF, None, 'image/gif')
-        elif parsed.path == '/__storage':
-            self.reply(200, json.dumps(state['storage']).encode('utf-8'), origin)
-        elif state['mode'] == 'ok' and parsed.path.endswith('/wp/v2/posts'):
-            stats['archive'] += 1
-            link = f'{self.api_origin}/wp-content/uploads/2026/10/V13_Em-Cartaz_2026_novembro_VF.pdf'
-            older = f'{self.api_origin}/wp-content/uploads/2026/09/older.pdf'
-            body = [{'content': {'rendered': f'<a href="{link}">new</a><a href="{older}">old</a>'}}]
-            self.reply(200, json.dumps(body).encode('utf-8'), origin)
-        elif parsed.path.endswith('.pdf'):
-            stats['pdf'] += 1
-            self.reply(200, state['pdf'], '*', 'application/pdf')
-        else:
-            self.answer_activities(parsed, origin)
-
-    def answer_activities(self, parsed, origin):
-        is_listing = parsed.path.endswith('/filter')
-        stats['origins'].add(origin)
-        stats['listing' if is_listing else 'detail'] += 1
-        stats['starts'].append(time.monotonic())
-        stats['in_flight'] += 1
-        stats['peak'] = max(stats['peak'], stats['in_flight'])
-        try:
-            mode = state['mode']
-            if mode == 'block-all' or (mode == 'block-details' and not is_listing):
-                # Like CloudFront's refusal: a 403 with no CORS header, which a browser sees as a network error.
-                self.reply(403, b'<!DOCTYPE html><h1>403 ERROR</h1>', None, 'text/html')
-            elif is_listing:
-                self.reply(200, recorded['listing'].encode('utf-8'), origin)
-            else:
-                time.sleep(state['latency'])
-                entry = recorded['details'].get(urllib.parse.parse_qs(parsed.query)['slug'][0])
-                if entry:
-                    self.reply(entry['status'], entry['body'].encode('utf-8'), origin)
-                else:
-                    self.reply(404, b'{"code":"activity_not_found"}', origin)
-        finally:
-            stats['in_flight'] -= 1
-
-    def reply(self, status, body, origin, kind='application/json; charset=UTF-8'):
-        self.send_response(status)
-        self.send_header('Content-Type', kind)
-        self.send_header('Content-Length', str(len(body)))
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
-        if origin:
-            self.send_header('Access-Control-Allow-Origin', origin)
-            if origin != '*':
-                self.send_header('Vary', 'Origin')
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *args):
-        pass
 
 
 class Site(http.server.SimpleHTTPRequestHandler):
+    """Serves the copy of the page, and holds Chrome until the page has reported."""
+
     # Windows can map these to something else, and browsers then refuse to run modules.
     extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.js': 'text/javascript', '.mjs': 'text/javascript'}
+
+    def do_GET(self):
+        path = urllib.parse.urlsplit(self.path).path
+        if path == '/__hold':
+            # The page's load event waits for this image, so Chrome waits for the page to finish.
+            release.wait(180)
+            self.reply(200, GIF, 'image/gif')
+        elif path == '/booklet.json' and not state['booklet']:
+            self.reply(404, b'Not found', 'text/plain')
+        else:
+            super().do_GET()
+
+    def do_POST(self):
+        release.set()
+        self.reply(200, b'{}', 'application/json')
+
+    def reply(self, status, body, kind):
+        self.send_response(status)
+        self.send_header('Content-Type', kind)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, *args):
         pass
@@ -144,22 +84,17 @@ def replace_once(text, old, new):
     return text.replace(old, new)
 
 
-def build_site(site, api_origin):
-    """Copy the page, and change only where it points and what's needed to watch it."""
+def build_site(site):
+    """Copy the page, with the test's booklet and what's needed to watch it."""
     shutil.copytree(ROOT / 'web', site)
-    plays = (site / 'plays.js').read_text(encoding='utf-8')
-    (site / 'plays.js').write_text(
-        replace_once(plays, 'export const SITE_URL = "https://www.sescsp.org.br"', f'export const SITE_URL = "{api_origin}"'),
-        encoding='utf-8')
+    shutil.copyfile(HERE / 'booklet.json', site / 'booklet.json')
     page = (site / 'index.html').read_text(encoding='utf-8')
-    page = replace_once(page, 'connect-src https://www.sescsp.org.br', f'connect-src {api_origin}')
-    page = replace_once(page, 'img-src data:', f'img-src data: {api_origin}')
+    page = replace_once(page, 'img-src data:', "img-src data: 'self'")
     page = replace_once(page, '<script type="module"', '<script src="probe.js"></script>\n<script type="module"')
-    page = replace_once(page, '<main id="results">', f'<img src="{api_origin}/__hold" alt="" width="1" height="1"><main id="results">')
+    page = replace_once(page, '<main id="results">', '<img src="__hold" alt="" width="1" height="1"><main id="results">')
     (site / 'index.html').write_text(page, encoding='utf-8')
-    offset = round((datetime.datetime.fromisoformat(RECORDED_AT).timestamp() - time.time()) * 1000)
     probe = (HERE / 'probe.js').read_text(encoding='utf-8')
-    (site / 'probe.js').write_text(probe.replace('__API__', api_origin).replace('__CLOCK_OFFSET__', str(offset)), encoding='utf-8')
+    (site / 'probe.js').write_text(probe.replace('__CURRENT__', CURRENT), encoding='utf-8')
 
 
 def find_chrome():
@@ -178,16 +113,16 @@ def find_chrome():
     sys.exit('Chrome not found. Set CHROME to its path.')
 
 
-def booklet(name):
-    path = CACHE / f'{name}.pdf'
-    if not path.exists():
-        print(f'Downloading the {name} booklet from Sesc. This only happens once.')
-        request = urllib.request.Request(BOOKLETS[name], headers={'User-Agent': 'ticket-drop-browser-test'})
-        with urllib.request.urlopen(request, timeout=300) as response:
-            data = response.read()
-        CACHE.mkdir(exist_ok=True)
-        path.write_bytes(data)
-    return path.read_bytes()
+def download_november():
+    path = CACHE / 'november.pdf'
+    if path.exists():
+        return
+    print('Downloading the November booklet from Sesc, for node --test. This only happens once.')
+    request = urllib.request.Request(NOVEMBER_URL, headers={'User-Agent': 'ticket-drop-browser-test'})
+    with urllib.request.urlopen(request, timeout=300) as response:
+        data = response.read()
+    CACHE.mkdir(exist_ok=True)
+    path.write_bytes(data)
 
 
 class Browser:
@@ -204,21 +139,20 @@ class Browser:
         finally:
             shutil.rmtree(profile, ignore_errors=True)
 
-    def visit(self, query='', mode='ok', latency=0.03):
-        """Open the page, wait for it to finish, and return its report and the requests it made."""
-        state.update(mode=mode, latency=latency)
+    def visit(self, booklet=True, **params):
+        """Open the page, wait for it to finish, and return its report."""
+        state.update(booklet=booklet)
         release.clear()
-        reset_stats()
+        query = f'?{urllib.parse.urlencode(params)}' if params else ''
         dom = self.run(['--dump-dom'], f'{self.site_url}/{query}').stdout.decode('utf-8', 'replace')
         start = dom.find(OUTPUT_MARK)
         report = {}
         if start >= 0:
             report = json.loads(html.unescape(dom[start + len(OUTPUT_MARK):dom.find('</pre>', start)]))
-        gaps = [b - a for a, b in zip(stats['starts'], stats['starts'][1:])]
-        return {**report, **stats, 'finished': start >= 0, 'smallest_gap': min(gaps, default=None)}
+        return {**report, 'finished': start >= 0}
 
     def screenshot(self, name, width, height, folder):
-        state.update(mode='ok', latency=0.03)
+        state.update(booklet=True)
         release.clear()
         target = folder / f'{name}.png'
         url = f'{self.site_url}/'
@@ -244,186 +178,82 @@ def check(label, actual, expected=True):
         failures.append(label)
 
 
-def check_requests(visit, **expected):
-    check('requests made', {name: visit[name] for name in expected}, expected)
-
-
-def check_healthy(visit):
+def check_healthy(visit, site_origin):
     check('page finished', visit['finished'])
     check('no blocked content or script errors', [visit.get('violations'), visit.get('errors')], [[], []])
-    check('no button under the filters', visit.get('progressButton'), False)
-
-
-def forget():
-    state['storage'] = {}
+    check('only asks its own site', visit.get('origins'), [site_origin])
 
 
 FORECASTS = [
     ('Peça para os Homens', 'Ipiranga', 'Previsão: 10 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
     ('Os Amores de Lorca, ou o Amor Dorme no Peito do Poeta', 'Pinheiros', 'Previsão: 10 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
+    ('Reality Show', 'Pompeia', 'Previsão: 10 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
+    ('Farinha com Açúcar ou Sobre a Sustança de Meninos e Homens', '14 Bis', 'Previsão: 17 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
     ('Jogo de Imaginar', 'Avenida Paulista', 'Previsão: 17 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
     ('A Terra Prometida', 'Belenzinho', 'Previsão: 17 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
+    ('O Porco', 'Pompeia', 'Previsão: 17 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
+    ('Cuidado Frágil', 'São Caetano', 'Previsão: 17 nov, 17h · Obtido no livreto, sujeito a mudanças. Confirme no Sesc'),
 ]
 
 
-def test_first_visit(browser, site_origin):
-    scenario('First visit: plays appear as they load, then the forecasts')
-    forget()
-    # Slow enough that the spacing between requests can't keep them under the limit by itself.
-    visit = browser.visit('?interact=1', latency=1.0)
-    check_healthy(visit)
-    check_requests(visit, listing=1, detail=47, archive=1, pdf=1)
-    check('at most 3 requests at once', 0 < visit['peak'] <= 3)
-    check('requests at least 100 ms apart', visit['smallest_gap'] is not None and visit['smallest_gap'] >= 0.1)
-    check('requests come from another origin', visit['origins'], {site_origin})
-    check('cards appear gradually', len(set(visit.get('cardCounts', []))) > 2)
+def test_forecasts(browser, site_origin):
+    scenario('A visit while the booklet is current: its forecasts')
+    visit = browser.visit(interact=1)
+    check_healthy(visit, site_origin)
     check('title', visit.get('title'), 'Quando abre a estreia?')
     check('dark, even though the browser prefers light', visit.get('background'), 'rgb(22, 19, 15)')
     check('region starts on the capital', visit.get('choice'), 'region:capital')
-    check('next opening', visit.get('hero'), 'Próxima aberturaTerça, 10 de novembro, 17hdaqui a 5 dias · 7 peças')
-    check('cards in the capital', visit.get('cards'), 13)
-    check('cards in the interior', visit.get('interior'), 12)
-    check('cards on the coast', visit.get('coast'), 2)
-    check('cards in all regions', visit.get('all'), 27)
+    check('next opening', visit.get('hero'), 'Próxima abertura (previsão)Terça, 10 de novembro, 17hdaqui a 5 dias · 3 peças')
+    check('cards in the capital', visit.get('cards'), 8)
+    # The booklet is mostly about the capital.
+    check('cards in the interior', visit.get('interior'), 0)
+    check('cards on the coast', visit.get('coast'), 0)
+    check('cards in all regions', visit.get('all'), 8)
     check('every unit can be chosen', visit.get('unitChoices'), 44)
     check('a unit with nothing to open says so', visit.get('santana'), [0, 'Nenhuma abertura prevista em Santana. Experimente outra região.'])
-    check('search finds a play', visit.get('search'), ['Farinha com Açúcar ou Sobre a Sustança de Meninos e Homens'])
-    check('premiere rule on Farinha', '20 a 28 nov · 5 datas · temporada até 29 nov' in visit.get('farinha', ''))
+    check('search finds a play', visit.get('search'), ['Os Amores de Lorca, ou o Amor Dorme no Peito do Poeta'])
     check('forecasts', [(row['title'], row['unit'], row['sale']) for row in visit.get('forecasts', [])], FORECASTS)
+    check('says which booklet', visit.get('updated'), 'Previsões do livreto Em Cartaz de novembro de 2026.')
     check('no note about problems', visit.get('problem'), None)
 
 
-def test_returning_visits(browser):
-    scenario('Reload: everything comes from what was saved')
-    visit = browser.visit()
-    check_healthy(visit)
-    check_requests(visit, listing=0, detail=0, archive=0, pdf=0)
-    check('cards', visit.get('cards'), 13)
-    check('forecasts', len(visit.get('forecasts', [])), 4)
+def test_problems(browser, site_origin):
+    scenario('December, still with the November booklet: says so')
+    visit = browser.visit(at='2026-12-02T12:00:00-03:00')
+    check_healthy(visit, site_origin)
+    check('note says the booklet is old', 'são do livreto de novembro' in (visit.get('problem') or ''))
 
-    scenario('Listing older than 10 minutes: one request')
-    visit = browser.visit('?age=listing')
-    check_healthy(visit)
-    check_requests(visit, listing=1, detail=0, archive=0, pdf=0)
-    check('cards', visit.get('cards'), 13)
-
-    scenario("Plays older than 3 hours: details fetched again, but not the booklet")
-    visit = browser.visit('?age=listing,plays')
-    check_healthy(visit)
-    check_requests(visit, listing=1, detail=47, archive=0, pdf=0)
-    check('cards', visit.get('cards'), 13)
-
-
-def test_refusals(browser):
-    scenario('Sesc refuses everything, with saved results: they stay')
-    visit = browser.visit('?age=listing,plays', mode='block-all')
-    check_healthy(visit)
-    check_requests(visit, listing=3, detail=0)
-    check('cards', visit.get('cards'), 13)
-    check('forecasts', len(visit.get('forecasts', [])), 4)
-    check('note says the data is old', 'Não foi possível atualizar agora' in (visit.get('problem') or ''))
-
-    scenario('Sesc refuses details, with saved results: requests stop')
-    visit = browser.visit('?age=listing,plays', mode='block-details')
-    check_healthy(visit)
-    check('stopped early', 0 < visit['detail'] < 20)
-    check('cards', visit.get('cards'), 13)
-    check('note says plays are missing', 'não puderam ser verificadas' in (visit.get('problem') or ''))
-
-    scenario('Sesc refuses everything, first visit')
-    forget()
-    visit = browser.visit(mode='block-all')
-    check_healthy(visit)
-    check_requests(visit, listing=3, detail=0, archive=0, pdf=0)
+    scenario('No booklet: says so')
+    visit = browser.visit(booklet=False)
+    check('page finished', visit['finished'])
+    check('no blocked content or script errors', [visit.get('violations'), visit.get('errors')], [[], []])
     check('cards', visit.get('cards'), 0)
     check('message', visit.get('empty'), 'Nenhuma peça para mostrar agora.')
-    check('note says Sesc can\'t be reached', 'Não foi possível consultar' in (visit.get('problem') or ''))
-
-    scenario('Sesc refuses details, first visit: requests stop')
-    forget()
-    visit = browser.visit(mode='block-details')
-    check_healthy(visit)
-    check('stopped early', 0 < visit['detail'] < 20)
-    check_requests(visit, listing=1, archive=0, pdf=0)
-    check('message', visit.get('empty'), 'Nenhuma peça para mostrar agora.')
-
-
-def test_bad_booklet(browser):
-    november = state['pdf']
-    scenario('Corrupt booklet: plays are unaffected')
-    forget()
-    state['pdf'] = b'this is not a pdf' * 100
-    visit = browser.visit()
-    check_healthy(visit)
-    check_requests(visit, listing=1, detail=47, archive=1, pdf=1)
-    check('cards', visit.get('cards'), 9)
-    check('forecasts', len(visit.get('forecasts', [])), 0)
-    check('note about the booklet', 'Não foi possível ler o livreto' in (visit.get('problem') or ''))
-
-    scenario("Reload after a corrupt booklet: it isn't downloaded again")
-    visit = browser.visit()
-    check_healthy(visit)
-    check_requests(visit, listing=0, detail=0, archive=1, pdf=0)
-    check('note stays', 'Não foi possível ler o livreto' in (visit.get('problem') or ''))
-    state['pdf'] = november
-
-
-def test_large_booklets(browser):
-    november = state['pdf']
-    for name in ('august', 'october'):
-        state['pdf'] = booklet(name)
-        scenario(f'Real {name} booklet ({len(state["pdf"]) / 1e6:.1f} MB): reads by itself')
-        forget()
-        visit = browser.visit()
-        check_healthy(visit)
-        check_requests(visit, listing=1, detail=47, archive=1, pdf=1)
-        check('no note about problems', visit.get('problem'), None)
-        # Its plays have passed, so no forecasts appear. Not reading it again shows it was saved.
-        visit = browser.visit()
-        check_requests(visit, listing=0, detail=0, archive=0, pdf=0)
-    state['pdf'] = november
+    check('next opening', visit.get('hero'), 'Próxima abertura (previsão)Sem dados agoraNão foi possível carregar as previsões.')
+    check('note says the forecasts are missing', 'Não foi possível carregar as previsões' in (visit.get('problem') or ''))
 
 
 def main():
-    global recorded
-    parser = argparse.ArgumentParser(description="Drive the page in headless Chrome against a mock of Sesc's API.")
-    parser.add_argument('--large-booklets', action='store_true', help='also read the real 16 and 22 MB editions, downloading them once')
+    parser = argparse.ArgumentParser(description='Drive the page in headless Chrome, with a fixed copy of the booklet.')
     parser.add_argument('--screenshots', type=pathlib.Path, metavar='DIR', help='save desktop and phone screenshots here')
     args = parser.parse_args()
 
-    sys.stdout.reconfigure(encoding='utf-8')
-    recorded = json.loads((HERE / 'recorded.json').read_text(encoding='utf-8'))
-    state['pdf'] = booklet('november')
+    download_november()
     chrome = find_chrome()
-
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temporary:
         work = pathlib.Path(temporary)
-        api, api_origin = serve(Api)
-        Api.api_origin = api_origin
-        build_site(work / 'site', api_origin)
-
-        class ThisSite(Site):
-            def __init__(self, *handler_args, **kwargs):
-                super().__init__(*handler_args, directory=str(work / 'site'), **kwargs)
-
-        site, site_origin = serve(ThisSite)
+        build_site(work / 'site')
+        site, site_origin = serve(functools.partial(Site, directory=str(work / 'site')))
         browser = Browser(chrome, work, site_origin)
         try:
-            test_first_visit(browser, site_origin)
-            test_returning_visits(browser)
-            test_refusals(browser)
-            test_bad_booklet(browser)
-            if args.large_booklets:
-                test_large_booklets(browser)
+            test_forecasts(browser, site_origin)
+            test_problems(browser, site_origin)
             if args.screenshots:
                 scenario('Screenshots')
                 args.screenshots.mkdir(parents=True, exist_ok=True)
-                forget()
-                browser.visit()
                 browser.screenshot('desktop', 1280, 1400, args.screenshots)
                 browser.screenshot('phone', 390, 1200, args.screenshots)
         finally:
-            api.shutdown()
             site.shutdown()
 
     print(f"\n{'All checks passed.' if not failures else f'{len(failures)} failed: ' + '; '.join(failures)}")

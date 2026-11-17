@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; connect-src https://www.sescsp.org.br; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="description" content="Quando abre a venda de ingressos das peças do Sesc São Paulo. Site não oficial.">
@@ -122,7 +122,6 @@
   .play-title { margin: 0; font: 700 1.2rem/1.25 var(--display); overflow-wrap: anywhere; }
   .play-title a { text-decoration: none; }
   .play-title a:hover { text-decoration: underline; }
-  .play-subtitle { margin: 2px 0 0; color: var(--muted); font-size: 0.9375rem; }
   .play-unit { margin: 6px 0 0; font-weight: 600; }
   .play-dates { margin: 0; color: var(--muted); font-size: 0.9375rem; }
   .play-deal p { margin: 0; font-size: 0.9375rem; }
@@ -142,7 +141,6 @@
     font-weight: 600;
     text-decoration: none;
   }
-  .play-action.is-primary { background: var(--accent); color: var(--accent-ink); }
 
   .empty { margin: 32px 0; color: var(--muted); }
   footer {
@@ -165,9 +163,9 @@
 <div class="page">
   <header>
     <h1 class="brand">Quando abre a estreia?</h1>
-    <p class="lead">Veja quando abre a venda de ingressos das peças do Sesc São Paulo. A maioria abre às terças, às 17h, mas há exceções.</p>
+    <p class="lead">Veja quando deve abrir a venda de ingressos das peças do Sesc São Paulo. A maioria abre às terças, às 17h, mas há exceções.</p>
   </header>
-  <noscript><p class="notice">Esta página precisa de JavaScript para consultar o site do Sesc.</p></noscript>
+  <noscript><p class="notice">Esta página precisa de JavaScript para mostrar as previsões.</p></noscript>
   <p class="notice" id="problem" hidden></p>
   <section class="ticket" id="next" aria-live="polite"></section>
   <form class="filters" id="filters" role="search">
@@ -185,9 +183,9 @@
   <footer>
     <p id="updated"></p>
     <p>Na bilheteria física, a venda costuma abrir na quarta seguinte, às 17h. Temporadas inteiras entram à venda de uma vez, conforme a data de estreia.</p>
-    <p>Peças marcadas com “Previsão” ainda não estão na programação on-line do Sesc. Elas vêm do livreto <a href="https://www.sescsp.org.br/editorial/emcartaz/" rel="noopener">Em Cartaz</a>, e a data é uma estimativa feita a partir da regra de vendas impressa nele.</p>
-    <p>Esta lista pode estar incompleta: há peças que só aparecem aqui poucas horas antes de a venda abrir. Peças com a venda já aberta e peças gratuitas sem venda de ingressos não aparecem.</p>
-    <p>Site não oficial, sem vínculo com o Sesc São Paulo. Datas, preços e quantidades vêm do site do Sesc, consultado pelo seu navegador quando a página abre, e podem mudar: confirme lá antes de comprar.</p>
+    <p>Todas as datas são previsões. As peças vêm do livreto <a href="https://www.sescsp.org.br/editorial/emcartaz/" rel="noopener">Em Cartaz</a>, e cada data é calculada a partir da regra de vendas impressa nele, então pode errar. O Sesc não permite mais que outros sites consultem sua programação, por isso os horários exatos estão só no site do Sesc.</p>
+    <p>Esta lista é incompleta: o livreto destaca sobretudo peças da capital, e nem toda peça aparece nele. Peças com a venda já aberta e peças gratuitas não aparecem.</p>
+    <p>Site não oficial, sem vínculo com o Sesc São Paulo. Datas e preços podem mudar: confirme no site do Sesc antes de comprar.</p>
   </footer>
 </div>
 <script type="module" src="app.js"></script>

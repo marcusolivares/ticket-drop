@@ -10,7 +10,6 @@ import {
   latestBookletUrl,
   parseEntries,
   parsePrice,
-  samePlay,
   scheduleText,
   textRuns,
 } from "../web/booklet.js";
@@ -37,11 +36,9 @@ function entry({ name = "Reality Show", when = "De 19/11 a 13/12. Quintas a sáb
   return { unit: place, title: name, isMain, schedule: when, page };
 }
 
-function build(entries, { listing = [], moment = MOMENT, today = TODAY } = {}) {
-  return buildEstimates({ entries, edition: EDITION, listing, bookletUrl: BOOKLET_URL, moment, today, end: END });
+function build(entries, { moment = MOMENT, today = TODAY } = {}) {
+  return buildEstimates({ entries, edition: EDITION, bookletUrl: BOOKLET_URL, moment, today, end: END });
 }
-
-const listed = (name, place = "Pompeia") => ({ titulo: name, unidade: [{ name: place }] });
 
 describe("latestBookletUrl", () => {
   test("takes the first link", () => {
@@ -192,40 +189,21 @@ describe("isKnownUnit", () => {
   test("rejects a unit missing from the list", () => assert.equal(isKnownUnit("UNIDADE NOVA"), false));
 });
 
-describe("samePlay", () => {
-  test("ignores accents and case", () => assert.equal(samePlay("CÃO", "Cão"), true));
-  test("small differences match", () => assert.equal(samePlay("A Hora e a Vez", "A Hora e Vez"), true));
-  test("shortened titles match", () => assert.equal(samePlay("Os Amores de Lorca, ou o Amor Dorme no Peito do Poeta", "Os Amores de Lorca"), true));
-  test("different plays don't match", () => assert.equal(samePlay("Reality Show", "Rei Menino"), false));
-  test("short titles need to be equal", () => assert.equal(samePlay("Cão", "A Coleção de Cão e Gato"), false));
-});
-
 describe("buildEstimates", () => {
   test("builds a forecast", () => {
     const [drop] = build([entry()]);
-    assert.equal(drop.estimated, true);
+    assert.equal(drop.title, "Reality Show");
     assert.equal(drop.online_sale_start, "2026-11-10T17:00");
     assert.equal(drop.url, `${BOOKLET_URL}#page=28`);
     assert.ok(drop.confirm_url.endsWith("unidades=pompeia"));
     assert.deepEqual([drop.unit, drop.unit_slug, drop.region], ["Pompeia", "pompeia", "capital"]);
     assert.deepEqual([drop.price_full, drop.price_half, drop.price_member], [70, 35, 21]);
-    assert.deepEqual(drop.dates, ["2026-11-19"]);
     assert.equal(drop.schedule, "De 19/11 a 13/12. Quintas a sábados, 20h.");
-    assert.equal(drop.buy_url, null);
-    assert.deepEqual(drop.sessions, []);
   });
 
   test("matches booklet unit names in capitals", () => {
     assert.equal(build([entry({ place: "24 DE MAIO" })])[0].unit, "24 de Maio");
     assert.equal(build([entry({ place: "SÃO CAETANO" })])[0].unit_slug, "sao-caetano");
-  });
-
-  test("skips a play the API already lists", () => {
-    assert.deepEqual(build([entry()], { listing: [listed("Reality Show")] }), []);
-  });
-
-  test("keeps a play the API lists at another unit", () => {
-    assert.equal(build([entry()], { listing: [listed("Reality Show", "24 de Maio")] }).length, 1);
   });
 
   test("skips free plays", () => assert.deepEqual(build([entry({ when: "De 19/11 a 13/12. GRÁTIS." })]), []));
@@ -245,8 +223,7 @@ describe("buildEstimates", () => {
     assert.deepEqual(build([entry({ when: "De 5/12 a 13/12. R$60 R$30 R$18" })]), []);
   });
 
-  test("skips unknown units", (context) => {
-    context.mock.method(console, "warn", () => {});
+  test("skips unknown units", () => {
     assert.deepEqual(build([entry({ place: "UNIDADE NOVA" })]), []);
   });
 

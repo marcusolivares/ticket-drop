@@ -1,9 +1,11 @@
-// Estimate sale openings from the monthly Em Cartaz booklet, for plays not in the API yet.
+// Estimate sale openings from the monthly Em Cartaz booklet.
 //
 // The booklet is a PDF with no structured data, but each kind of text has its own
 // font, which has held across the editions checked. The sale date is not in the
 // booklet: it's worked out from the rule the booklet prints, so it's only a forecast.
-// The API always wins: a play stops being estimated as soon as the API lists it.
+//
+// The booklet command reads the PDF on the maintainer's computer. The page only
+// builds the forecasts, so they stay current between editions.
 
 import { SITE_URL, cleanText, ruleSaleDay } from "./plays.js";
 import { UNITS } from "./regions.js";
@@ -34,7 +36,6 @@ const DATE_PATTERNS = [
 ];
 const PRICE_PATTERN = /R\$\s?(\d+(?:,\d{2})?)/g;
 const FREE_WORD = "GRÁTIS";
-const SIMILAR_ENOUGH = 0.85;
 
 /** The booklet couldn't be read, or doesn't look as expected. */
 export class BookletError extends Error {}
@@ -150,59 +151,12 @@ export function scheduleText(schedule) {
   return cleanText(schedule.split(/R\$|GRÁTIS/, 1)[0]);
 }
 
-// The same measure as Python's difflib: matching characters, found by repeatedly
-// taking the longest common block, as a share of the total length.
-function matchingCharacters(a, b) {
-  let bestSize = 0;
-  let bestA = 0;
-  let bestB = 0;
-  let previous = new Array(b.length + 1).fill(0);
-  for (let i = 0; i < a.length; i += 1) {
-    const current = new Array(b.length + 1).fill(0);
-    for (let j = 0; j < b.length; j += 1) {
-      if (a[i] === b[j]) {
-        current[j + 1] = previous[j] + 1;
-        if (current[j + 1] > bestSize) {
-          bestSize = current[j + 1];
-          bestA = i - bestSize + 1;
-          bestB = j - bestSize + 1;
-        }
-      }
-    }
-    previous = current;
-  }
-  if (!bestSize) return 0;
-  return (
-    bestSize +
-    matchingCharacters(a.slice(0, bestA), b.slice(0, bestB)) +
-    matchingCharacters(a.slice(bestA + bestSize), b.slice(bestB + bestSize))
-  );
-}
-
-export function samePlay(first, second) {
-  const a = normalize(first);
-  const b = normalize(second);
-  if (a === b || (a.length > 5 && b.length > 5 && (a.includes(b) || b.includes(a)))) return true;
-  return (2 * matchingCharacters(a, b)) / (a.length + b.length) >= SIMILAR_ENOUGH;
-}
-
-function titlesByUnit(listing) {
-  const titles = new Map();
-  for (const item of listing) {
-    const unit = normalize(item.unidade?.[0]?.name);
-    if (!titles.has(unit)) titles.set(unit, []);
-    titles.get(unit).push(item.titulo);
-  }
-  return titles;
-}
-
 /**
- * Return a drop for each ticketed play whose sale is still to come and isn't in the API.
+ * Return a drop for each ticketed play whose sale is still to come.
  *
  * `moment` and `today` are São Paulo time, and `end` is the last day of the window.
  */
-export function buildEstimates({ entries, edition, listing, bookletUrl, moment, today, end }) {
-  const listed = titlesByUnit(listing);
+export function buildEstimates({ entries, edition, bookletUrl, moment, today, end }) {
   const drops = [];
   let seriesUnit = null;
   let seriesPrice = null;
@@ -223,33 +177,23 @@ export function buildEstimates({ entries, edition, listing, bookletUrl, moment, 
     if (premiere === null || price === "free" || premiere < today || premiere > end) continue;
     const sale = ruleSaleDay(premiere);
     if (`${sale}T${SALE_TIME}` <= moment) continue;
-    if ((listed.get(unitKey) ?? []).some((title) => samePlay(entry.title, title))) continue;
+    // The booklet command reports units missing from the fixed list.
     const unit = UNITS_BY_NAME.get(unitKey);
-    if (!unit) {
-      console.warn(`Skipping ${entry.title}: unknown unit ${entry.unit}`);
-      continue;
-    }
+    if (!unit) continue;
     drops.push({
       id: `booklet-${unit.slug}-${normalize(entry.title).replaceAll(" ", "-")}`,
-      estimated: true,
       title: entry.title,
-      subtitle: "",
       url: `${bookletUrl}#page=${entry.page}`,
       confirm_url: PROGRAMME_URL + unit.slug,
-      buy_url: null,
       unit: unit.name,
       unit_slug: unit.slug,
       region: unit.region,
       online_sale_start: `${sale}T${SALE_TIME}`,
-      in_person_sale_start: null,
       price_full: price?.full ?? null,
       price_half: price?.half ?? null,
       price_member: price?.member ?? null,
       price_varies: price?.varies ?? false,
-      dates: [premiere],
       schedule: scheduleText(entry.schedule),
-      season_end: null,
-      sessions: [],
     });
   }
   return drops;
