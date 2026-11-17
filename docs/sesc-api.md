@@ -33,15 +33,27 @@ Sesc's CloudFront refuses some clients, and browsers apply CORS on top. Checked 
 
 A refusal usually has no CORS header, so a browser reports it as a network error (`Failed to fetch`), not as a 403. Once, a refusal arrived as a readable HTML page with status 200. Don't work around these blocks: if Sesc refuses this project's requests, respect that.
 
+**On 2026-11-06, `/wp/v1/atividades/` was refused to every client tried.** CloudFront answered `403` with its "Request blocked" page to:
+
+- desktop Chrome on the live page, with ordinary headers;
+- a phone on mobile data, so the block isn't tied to one IP;
+- a script on a home connection, with an honest User-Agent, with and without `Origin`, and with `ppp=12`.
+
+Both `filter` and `detail` were refused. The home page and `/wp/v2/posts` still answered `200`, and `www.sescsp.org.br/programacao` loaded normally in the browser.
+
+**On 2026-11-16, nothing had changed for this project.** A script on a home connection, with an honest User-Agent, still got `403` from `filter`, and `/wp/v2/posts` still answered `200`. But in desktop Chrome, `www.sescsp.org.br/programacao` got `200` from its own requests to `filter` and `dinamico`. So the route still works for Sesc's own pages, and the block is aimed at everyone else. Don't copy what Sesc's pages send to get past it.
+
+**By 2026-11-17, other sites couldn't read the booklet either.** `/wp/v2/posts` and the booklet PDFs still answer `200`, but send no `Access-Control-Allow-Origin` for any `Origin`, so a browser on another site gets a CORS error. A script still reads both.
+
 CORS, by route:
 
 | Route | From another site | Notes |
 |---|---|---|
 | `/wp/v1/atividades/filter`, `/detail` | Readable | Echoes the `Origin`, with `Vary: Origin`. 404s are readable too. |
-| `/wp/v2/posts` | Readable | Echoes the `Origin`. |
+| `/wp/v2/posts` | **Not since 2026-11-17** | Echoed the `Origin` until at least 2026-11-05. |
 | `/wp/v1/unidades-atividades` | **Unreliable** | No `Vary: Origin`. A script sees the header, but a real browser got none, and I couldn't reproduce why. This project keeps a fixed copy of the units in `web/regions.js`. |
 | `/editorial/emcartaz/` | Not readable | No CORS header, so use the posts route, which has the same content. |
-| Booklet PDFs | Readable | `Access-Control-Allow-Origin: *`. |
+| Booklet PDFs | **Not since 2026-11-17** | Sent `Access-Control-Allow-Origin: *` until at least 2026-11-05. |
 
 Responses aren't compressed and are sent with `no-store`, so browsers can't cache them. The listing is about 340 KB, and a `detail` response up to about 13 KB.
 
