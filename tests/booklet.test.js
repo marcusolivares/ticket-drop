@@ -6,6 +6,7 @@ import {
   buildEstimates,
   findEdition,
   firstDate,
+  isKnownUnit,
   latestBookletUrl,
   parseEntries,
   parsePrice,
@@ -184,6 +185,11 @@ describe("the sale rule", () => {
     };
     for (const [premiere, sale] of Object.entries(table)) assert.equal(ruleSaleDay(premiere), sale, premiere);
   });
+});
+
+describe("isKnownUnit", () => {
+  test("matches the booklet's capitals", () => assert.equal(isKnownUnit("SÃO CAETANO"), true));
+  test("rejects a unit missing from the list", () => assert.equal(isKnownUnit("UNIDADE NOVA"), false));
 });
 
 describe("samePlay", () => {

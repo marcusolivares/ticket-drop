@@ -50,6 +50,11 @@ export function normalize(text) {
 
 const UNITS_BY_NAME = new Map(Object.entries(UNITS).map(([slug, unit]) => [normalize(unit.name), { slug, ...unit }]));
 
+/** Whether a unit name, as the booklet prints it, is in the fixed list of units. */
+export function isKnownUnit(name) {
+  return UNITS_BY_NAME.has(normalize(name));
+}
+
 /** Return the newest booklet. The archive page lists them newest first. */
 export function latestBookletUrl(archiveHtml) {
   const match = BOOKLET_LINK.exec(archiveHtml);
